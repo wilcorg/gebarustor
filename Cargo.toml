@@ -1,0 +1,14 @@
+[package]
+name = "l4-rust"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+lalrpop-util = {version = "0.22.0", features = ["lexer", "unicode"]}
+
+[build-dependencies]
+lalrpop = "0.22.0"
+
+[[bin]]
+name = "gebarustor"
+path = "src/main.rs"
