@@ -53,9 +53,8 @@ match {
     r"#[^\n\r]*[\n\r]*" => {}, // Skip `# comment`
 }
 
-// TODO probably should be mut
 pub Program: Program = {
-    </*mut */procedures:Procedures?> <main:Main> => (procedures, main),
+    <procedures:Procedures?> <main:Main> => (procedures, main),
 };
 
 Procedures: Procedures = {
@@ -79,7 +78,7 @@ Commands: Commands = {
 };
 
 Command: Command = {
-    <id:Identifier> ":=" <expression:Expression> => Command::Assign(id, expression),
+    <id:Identifier> ":=" <expression:Expression> ";" => Command::Assign(id, expression),
     "IF" <condition:Condition> "THEN" <commands0:Commands> "ELSE" <commands1:Commands> "ENDIF" => Command::If(condition, commands0, Some(commands1)),
     "IF" <condition:Condition> "THEN" <commands:Commands> "ENDIF" => Command::If(condition, commands, None),
     "WHILE" <condition:Condition> "DO" <commands:Commands> "ENDWHILE" => Command::While(condition, commands),
@@ -96,33 +95,33 @@ ProcedureHead: ProcedureHead = {
 };
 
 ProcedureCall: ProcedureCall = {
-    <p:Pidentifier> "(" <a:Arguments> ")" => (p, a),
+    <p:Pidentifier> "(" <a: Arguments> ")" => (p, a),
 };
 
 Declarations: Declarations = {
     <mut v:Declarations> "," <p: Pidentifier> => {
-        v.push(DeclarationVariant::Base(p));
+        v.push(VarDeclVariant::Val(p));
         v
     },
     <mut v:Declarations> "," <p: Pidentifier> "[" <from:Num> ":" <to:Num> "]" => {
-        v.push(DeclarationVariant::NumIndexed(p, from, to));
+        v.push(VarDeclVariant::NumIndexed(p, from, to));
         v
     },
-    <p: Pidentifier> => vec![DeclarationVariant::Base(p)],
-    <p: Pidentifier> "[" <from:Num> ":" <to:Num> "]" => vec![DeclarationVariant::NumIndexed(p, from, to)],
+    <p: Pidentifier> => vec![VarDeclVariant::Val(p)],
+    <p: Pidentifier> "[" <from:Num> ":" <to:Num> "]" => vec![VarDeclVariant::NumIndexed(p, from, to)],
 };
 
 ArgumentsDeclaration: ArgumentsDeclaration = {
     <mut v:ArgumentsDeclaration> "," <p: Pidentifier> => {
-        v.push(ArgumentsDeclarationVariant::Base(p));
+        v.push(ArgumentsDeclarationVariant::Val(p));
         v
     },
     <mut v:ArgumentsDeclaration> "," "T" <p: Pidentifier> => {
-        v.push(ArgumentsDeclarationVariant::Table(p));
+        v.push(ArgumentsDeclarationVariant::Array(p));
         v
     },
-    "T" <p: Pidentifier> => vec![ArgumentsDeclarationVariant::Table(p)],
-    <p: Pidentifier> => vec![ArgumentsDeclarationVariant::Base(p)],
+    "T" <p: Pidentifier> => vec![ArgumentsDeclarationVariant::Array(p)],
+    <p: Pidentifier> => vec![ArgumentsDeclarationVariant::Val(p)],
 };
 
 Arguments: Arguments = {
@@ -137,20 +136,20 @@ Arguments: Arguments = {
 
 Expression: Expression = {
     <v:Value> => Expression::Val(v),
-    <v0:Value> "+" <v1:Value>=> Expression::Add(v0, v1),
-    <v0:Value> "-" <v1:Value>=> Expression::Subtract(v0, v1),
-    <v0:Value> "*" <v1:Value>=> Expression::Multiply(v0, v1),
-    <v0:Value> "/" <v1:Value>=> Expression::Divide(v0, v1),
-    <v0:Value> "%" <v1:Value>=> Expression::Modulo(v0, v1),
+    <v0:Value> "+" <v1:Value>=> Expression::ADD(v0, v1),
+    <v0:Value> "-" <v1:Value>=> Expression::SUB(v0, v1),
+    <v0:Value> "*" <v1:Value>=> Expression::MUL(v0, v1),
+    <v0:Value> "/" <v1:Value>=> Expression::DIV(v0, v1),
+    <v0:Value> "%" <v1:Value>=> Expression::MOD(v0, v1),
 };
 
 Condition: Condition = {
-    <v0:Value> "=" <v1:Value> => Condition::Equal(v0, v1),
-    <v0:Value> "!=" <v1:Value> => Condition::NotEqual(v0, v1),
-    <v0:Value> ">" <v1:Value> => Condition::Greater(v0, v1),
-    <v0:Value> "<" <v1:Value> => Condition::Lower(v0, v1),
-    <v0:Value> ">=" <v1:Value> => Condition::GreaterOrEqual(v0, v1),
-    <v0:Value> "<=" <v1:Value> => Condition::LowerOrEqual(v0, v1),
+    <v0:Value> "=" <v1:Value> => Condition::EQ(v0, v1),
+    <v0:Value> "!=" <v1:Value> => Condition::NEQ(v0, v1),
+    <v0:Value> ">" <v1:Value> => Condition::GT(v0, v1),
+    <v0:Value> "<" <v1:Value> => Condition::LT(v0, v1),
+    <v0:Value> ">=" <v1:Value> => Condition::GEQ(v0, v1),
+    <v0:Value> "<=" <v1:Value> => Condition::LEQ(v0, v1),
 };
 
 Value: Value = {
@@ -159,11 +158,21 @@ Value: Value = {
 };
 
 Identifier: Identifier = {
-    <p: Pidentifier> => Identifier::Base(p),
+    <p: Pidentifier> => Identifier::Pid(p),
     <p: Pidentifier> "[" <n: Num> "]" => Identifier::NumIndexed(p, n),
     <p0: Pidentifier> "[" <p1: Pidentifier> "]" => Identifier::PidIndexed(p0, p1),
 };
 
-Num: Num = <s:r"[0-9]+"> => u64::from_str(s).unwrap();
+Num: Num = {
+    <digits: r"[0-9]+"> => {
+        i64::from_str(digits).unwrap()
+    },
+    // Negative number
+    "-" <digits: r"[0-9]+"> => {
+        let s = format!("-{}", digits);
+        i64::from_str(&s).unwrap()
+    },
+}
+
 
 Pidentifier: Pidentifier = <start: @L> <s:r"[_a-z]+"> => (s.to_string(), start);
